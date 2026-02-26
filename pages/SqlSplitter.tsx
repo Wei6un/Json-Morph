@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { format, SqlLanguage } from 'sql-formatter';
 
 interface SqlSplitterProps {
     theme: 'dark' | 'light';
@@ -9,12 +10,25 @@ const SqlSplitter: React.FC<SqlSplitterProps> = ({ theme }) => {
     const [inputSql, setInputSql] = useState('');
     const [outputSql, setOutputSql] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [formatMode, setFormatMode] = useState<'split' | 'format'>('format');
+    const [sqlDialect, setSqlDialect] = useState<SqlLanguage>('postgresql');
 
     const handleFormat = () => {
         try {
             setError(null);
             if (!inputSql.trim()) {
                 setOutputSql('');
+                return;
+            }
+
+            if (formatMode === 'format') {
+                const formatted = format(inputSql, {
+                    language: sqlDialect,
+                    tabWidth: 4,
+                    keywordCase: 'upper',
+                    linesBetweenQueries: 2,
+                });
+                setOutputSql(formatted);
                 return;
             }
 
@@ -75,17 +89,51 @@ const SqlSplitter: React.FC<SqlSplitterProps> = ({ theme }) => {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
                         </svg>
-                        SQL 字串分割
+                        SQL 字串格式化與分割
                     </h2>
-                    <button
-                        onClick={handleFormat}
-                        className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm"
-                    >
-                        格式化
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <select
+                            value={formatMode}
+                            onChange={(e) => setFormatMode(e.target.value as 'split' | 'format')}
+                            className={`px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${isDark
+                                    ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500'
+                                    : 'bg-white border-gray-300 text-gray-900 focus:border-blue-400'
+                                }`}
+                        >
+                            <option value="format">標準格式化</option>
+                            <option value="split">自訂分割 (含 nolock)</option>
+                        </select>
+
+                        {formatMode === 'format' && (
+                            <select
+                                value={sqlDialect}
+                                onChange={(e) => setSqlDialect(e.target.value as SqlLanguage)}
+                                className={`px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${isDark
+                                        ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500'
+                                        : 'bg-white border-gray-300 text-gray-900 focus:border-blue-400'
+                                    }`}
+                            >
+                                <option value="postgresql">PostgreSQL</option>
+                                <option value="mysql">MySQL</option>
+                                <option value="sqlite">SQLite</option>
+                                <option value="tsql">SQL Server (T-SQL)</option>
+                                <option value="mariadb">MariaDB</option>
+                            </select>
+                        )}
+
+                        <button
+                            onClick={handleFormat}
+                            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-sm whitespace-nowrap"
+                        >
+                            執行
+                        </button>
+                    </div>
                 </div>
-                <p className={`text-xs mt-2 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                    貼上包含 SELECT 與 FROM 的 SQL 語法，工具會將 SELECT 欄位每 2 個換一次行，並自動在 FROM 的資料表名稱後加上 `with (nolock)`。
+                <p className={`text-xs mt-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {formatMode === 'split'
+                        ? '自訂分割：貼上包含 SELECT 與 FROM 的 SQL 語法，工具會將 SELECT 欄位每 2 個換一次行，並自動在 FROM 的資料表名稱後加 with (nolock)。'
+                        : '標準格式化：使用 sql-formatter 來重新排版 SQL 語句，支援多種資料庫方言。'
+                    }
                 </p>
                 {error && (
                     <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-red-500 text-xs">
@@ -103,8 +151,8 @@ const SqlSplitter: React.FC<SqlSplitterProps> = ({ theme }) => {
                         value={inputSql}
                         onChange={(e) => setInputSql(e.target.value)}
                         className={`flex-1 w-full p-3 font-mono text-sm resize-none focus:outline-none rounded-lg custom-scrollbar transition-colors ${isDark
-                                ? 'bg-slate-800 text-slate-200 placeholder-slate-500 focus:ring-1 focus:ring-blue-500 selection:bg-blue-500/30'
-                                : 'bg-white text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-400 selection:bg-blue-100'
+                            ? 'bg-slate-800 text-slate-200 placeholder-slate-500 focus:ring-1 focus:ring-blue-500 selection:bg-blue-500/30'
+                            : 'bg-white text-gray-800 placeholder-gray-400 focus:ring-1 focus:ring-blue-400 selection:bg-blue-100'
                             }`}
                         placeholder="在此貼上您的 SQL 查詢..."
                         spellCheck="false"
@@ -119,8 +167,8 @@ const SqlSplitter: React.FC<SqlSplitterProps> = ({ theme }) => {
                             onClick={handleCopy}
                             disabled={!outputSql}
                             className={`p-1.5 rounded transition-colors ${outputSql
-                                    ? (isDark ? 'hover:bg-slate-800 text-blue-400 hover:text-blue-300' : 'hover:bg-gray-200 text-blue-600 hover:text-blue-700')
-                                    : (isDark ? 'text-slate-600' : 'text-gray-400')
+                                ? (isDark ? 'hover:bg-slate-800 text-blue-400 hover:text-blue-300' : 'hover:bg-gray-200 text-blue-600 hover:text-blue-700')
+                                : (isDark ? 'text-slate-600' : 'text-gray-400')
                                 }`}
                             title="複製"
                         >
@@ -133,8 +181,8 @@ const SqlSplitter: React.FC<SqlSplitterProps> = ({ theme }) => {
                         value={outputSql}
                         readOnly
                         className={`flex-1 w-full p-3 font-mono text-sm resize-none focus:outline-none rounded-lg custom-scrollbar transition-colors ${isDark
-                                ? 'bg-slate-800/80 text-green-400 selection:bg-green-500/30'
-                                : 'bg-white text-green-700 selection:bg-green-100'
+                            ? 'bg-slate-800/80 text-green-400 selection:bg-green-500/30'
+                            : 'bg-white text-green-700 selection:bg-green-100'
                             }`}
                         placeholder="結果將顯示於此..."
                         spellCheck="false"
